@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Snooker Table (Single Mode)</title>
+
+  <!-- p5.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
+  <!-- Matter.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+  <!-- Classes -->
+  <script src="classes/Cushion.js"></script>
+  <script src="classes/Table.js"></script>
+  <script src="classes/Ball.js"></script>
+  <script src="classes/Cue.js"></script>
+  <script src="classes/ShotPredictor.js"></script>
+  <script src="classes/SnookerRules.js"></script> 
+  <script src="classes/AIEngine.js"></script>    <!-- NEW AI logic file -->
+  <script src="classes/AIDebugger.js"></script>  <!-- NEW AI debugger file -->
+
+  <!-- Main Sketch -->
+  <script src="sketch.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      background-color: #006400; /* Dark green around the table */
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    /* Move #guide next to #scoreboard on the right side */
+    #scoreboard, #guide {
+      position: absolute;
+      top: 10px;
+    }
+    #scoreboard {
+      right: 10px;
+    }
+    #guide {
+      right: 220px; 
+    }
+
+    #guide, #scoreboard {
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+      z-index: 10;
+      max-width: 250px;
+      overflow-y: auto;
+    }
+
+    /* Simple modal overlay for instructions/rules */
+    #rulesOverlay {
+      position: fixed;
+      top: 0; 
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    #rulesContent {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      color: #333;
+      max-width: 600px;
+    }
+    #closeRulesBtn {
+      margin-top: 20px;
+      padding: 8px 16px;
+      background: #006400;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    #closeRulesBtn:hover {
+      background: #228B22;
+    }
+  </style>
+</head>
+<body>
+  <!-- Instructions / Guide Panel -->
+  <div id="guide">
+    <h3>Snooker (Single Mode)</h3>
+    <ul>
+      <li>Press '1' for <em>Starting Positions</em> (standard layout).</li>
+      <li>Press '2' for <em>Random Reds</em> only.</li>
+      <li>Press '3' for <em>Random Reds & Colored</em>.</li>
+      <li>Use the power bar (left side) to set the power (0–100%).</li>
+      <li>Press SPACE to strike the cue ball (<em>when balls are all stopped</em>).</li>
+      <li>Press 'R' to show/hide the Rules & Tips at any time.</li>
+    </ul>
+  </div>
+
+  <!-- Scoreboard -->
+  <div id="scoreboard">
+    <h3>Scoreboard</h3>
+    <p>Player 1: <span id="player1Score">0</span></p>
+    <p>Player 2: <span id="player2Score">0</span></p>
+    <p>Current Turn: <span id="currentTurn">Player 1</span></p>
+  </div>
+
+  <!-- Rules Modal -->
+  <div id="rulesOverlay" style="display:none;">
+    <div id="rulesContent">
+      <h2>Snooker Rules & How To Play</h2>
+      <p>
+        Welcome to Snooker! The aim is to pot red balls for 1 point each, 
+        followed by a color ball (worth 2–7 points, depending on the color). 
+        In a real snooker match, you alternate potting reds and colors 
+        until all reds are gone, then pot colors in ascending order 
+        (yellow -> green -> brown -> blue -> pink -> black).
+      </p>
+      <p>
+        In this single-player demo, you can experiment with ball physics, 
+        try different shots, and see your score update. 
+        Use the power bar on the left to set your shot strength, 
+        press SPACE to strike <strong>only once the balls have stopped</strong>, 
+        and observe the trajectory line as you aim.
+      </p>
+      <p>
+        You can also switch the game mode (1,2,3) to try different ball layouts. Enjoy!
+      </p>
+      <button id="closeRulesBtn">Close</button>
+    </div>
+  </div>
+</body>
+</html>
