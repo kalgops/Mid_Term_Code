@@ -8,26 +8,28 @@ class Cushion {
     this.engine = engine;
     this.world = engine.world;
 
-    const { Bodies, World } = Matter;
-
-    // Tweak restitution for realistic cushion bounce
-    this.body = Bodies.rectangle(x, y, width, height, {
+    let opts = {
       isStatic: true,
-      restitution: 1,  
+      restitution: 1.0,  // high bounce
       angle: angle,
       label: 'Cushion'
-    });
+    };
 
-    World.add(this.world, this.body);
+    this.body = Matter.Bodies.rectangle(x, y, width, height, opts);
+    Matter.World.add(this.world, this.body);
   }
 
   draw() {
-    fill(50, 25, 0); // Dark brown rails
-    stroke(50, 25, 0);
+    // We'll draw a more “wood-like” cushion.
     push();
+    fill(90, 44, 0);   // darker brown
+    stroke(60, 30, 0);
+    strokeWeight(2);
+
     translate(this.body.position.x, this.body.position.y);
     rotate(this.body.angle);
     rectMode(CENTER);
+
     rect(0, 0, this.width, this.height);
     pop();
   }

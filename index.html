@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Snooker Table (Single Mode)</title>
+  <title>Snooker Table (Multiple Modes)</title>
 
-  <!-- p5.js -->
+  <!-- p5.js + p5.sound.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
   <!-- Matter.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 
-  <!-- Classes -->
-  <script src="classes/Cushion.js"></script>
-  <script src="classes/Table.js"></script>
-  <script src="classes/Ball.js"></script>
-  <script src="classes/Cue.js"></script>
-  <script src="classes/ShotPredictor.js"></script>
-  <script src="classes/SnookerRules.js"></script> 
-  <script src="classes/AIEngine.js"></script>    <!-- NEW AI logic file -->
-  <script src="classes/AIDebugger.js"></script>  <!-- NEW AI debugger file -->
+  <!-- Classes (make sure these paths match your folder structure) -->
+  <script src="Classes/AIDebugger.js"></script>
+  <script src="Classes/AIEngine.js"></script>
+  <script src="Classes/SnookerRules.js"></script>
+  <script src="Classes/ShotPredictor.js"></script>
+  <script src="Classes/Cushion.js"></script>
+  <script src="Classes/Table.js"></script>
+  <script src="Classes/Ball.js"></script>
+  <script src="Classes/Cue.js"></script>
 
   <!-- Main Sketch -->
   <script src="sketch.js"></script>
@@ -27,34 +27,32 @@
   <style>
     body {
       margin: 0;
-      background-color: #006400; /* Dark green around the table */
-      overflow: hidden;
       font-family: Arial, sans-serif;
+      /* A different background color from cloth */
+      background-color: #0B3A0D;
+      overflow: hidden;
     }
-    /* Move #guide next to #scoreboard on the right side */
+
+    /* Container for the canvas so we can put scoreboard/rules below it */
+    #sketch-container {
+      width: 100%;
+      text-align: center;
+    }
+
+    /* The scoreboard and guide go below the canvas */
     #scoreboard, #guide {
-      position: absolute;
-      top: 10px;
-    }
-    #scoreboard {
-      right: 10px;
-    }
-    #guide {
-      right: 220px; 
-    }
-
-    #guide, #scoreboard {
-      color: white;
-      background: rgba(0, 0, 0, 0.5);
+      display: inline-block;
+      vertical-align: top;
+      margin: 10px;
       padding: 10px;
+      color: white;
+      background: rgba(0, 0, 0, 0.7);
       border-radius: 5px;
-      font-size: 14px;
-      z-index: 10;
-      max-width: 250px;
-      overflow-y: auto;
+      max-width: 350px;
+      text-align: left;
     }
 
-    /* Simple modal overlay for instructions/rules */
+    /* The rules modal overlay */
     #rulesOverlay {
       position: fixed;
       top: 0; 
@@ -86,28 +84,46 @@
     #closeRulesBtn:hover {
       background: #228B22;
     }
+
+    /* Additional styles for scoreboards */
+    #singlePlayerScoreboard, #multiplayerScoreboard {
+      display: none; /* Hidden by default, will be shown based on game mode */
+    }
+
   </style>
 </head>
 <body>
-  <!-- Instructions / Guide Panel -->
-  <div id="guide">
-    <h3>Snooker (Single Mode)</h3>
-    <ul>
-      <li>Press '1' for <em>Starting Positions</em> (standard layout).</li>
-      <li>Press '2' for <em>Random Reds</em> only.</li>
-      <li>Press '3' for <em>Random Reds & Colored</em>.</li>
-      <li>Use the power bar (left side) to set the power (0–100%).</li>
-      <li>Press SPACE to strike the cue ball (<em>when balls are all stopped</em>).</li>
-      <li>Press 'R' to show/hide the Rules & Tips at any time.</li>
-    </ul>
+  <div id="sketch-container">
+    <!-- The p5.js canvas is created here by createCanvas(...) -->
+    <!-- Scoreboard and guide below the table -->
+    <div id="singlePlayerScoreboard">
+      <h3>Score: <span id="singlePlayerScore">0</span></h3>
+    </div>
+    
+    <div id="multiplayerScoreboard">
+      <h3>Player 1 Score: <span id="player1Score">0</span></h3>
+      <h3>Player 2 Score: <span id="player2Score">0</span></h3>
+      <h4>Current Turn: <span id="currentTurn">Player 1</span></h4>
+    </div>
   </div>
-
-  <!-- Scoreboard -->
-  <div id="scoreboard">
-    <h3>Scoreboard</h3>
-    <p>Player 1: <span id="player1Score">0</span></p>
-    <p>Player 2: <span id="player2Score">0</span></p>
-    <p>Current Turn: <span id="currentTurn">Player 1</span></p>
+  <div id="guide">
+    <h3>Snooker Controls</h3>
+    <ul>
+      <li>Press '1' for <strong>Mode 1</strong> (standard triangle layout).</li>
+      <li>Press '2' for <strong>Mode 2</strong> (random reds, colored in standard spots).</li>
+      <li>Press '3' for <strong>Mode 3</strong> (random reds & random colored).</li>
+      <li>Press '4' for <strong>Mode 4</strong> (advanced rules demo + standard layout).</li>
+      <li>
+        To place the <strong>cue ball</strong> in the D zone:
+        <ul>
+          <li>If you see “Click Inside the 'D' Zone to Place Cue Ball”, click inside the D zone to place it.</li>
+          <li>Similarly, if the cue ball is potted without a red being potted, the next player re-places it in the D.</li>
+        </ul>
+      </li>
+      <li>Use the <strong>power bar</strong> (left side) to set shot strength (0–100%).</li>
+      <li>Press <strong>SPACE</strong> to strike the cue ball (only when balls are stopped).</li>
+      <li>Press <strong>R</strong> to show/hide the Rules & Tips at any time.</li>
+    </ul>
   </div>
 
   <!-- Rules Modal -->
@@ -115,21 +131,14 @@
     <div id="rulesContent">
       <h2>Snooker Rules & How To Play</h2>
       <p>
-        Welcome to Snooker! The aim is to pot red balls for 1 point each, 
-        followed by a color ball (worth 2–7 points, depending on the color). 
-        In a real snooker match, you alternate potting reds and colors 
-        until all reds are gone, then pot colors in ascending order 
-        (yellow -> green -> brown -> blue -> pink -> black).
+        - Pot reds for 1 point each, then a color (2–7 pts) until no reds remain.<br/>
+        - After all reds are gone, pot the colors in ascending order (Yellow→Green→Brown→Blue→Pink→Black).<br/>
+        - If you pot the cue ball before potting any red, your opponent gets to replace the cue ball in the D.<br/>
+        - Colored balls get re-spotted until the final phase (or if advanced logic is active).
       </p>
       <p>
-        In this single-player demo, you can experiment with ball physics, 
-        try different shots, and see your score update. 
-        Use the power bar on the left to set your shot strength, 
-        press SPACE to strike <strong>only once the balls have stopped</strong>, 
-        and observe the trajectory line as you aim.
-      </p>
-      <p>
-        You can also switch the game mode (1,2,3) to try different ball layouts. Enjoy!
+        Enjoy experimenting with the controls, the random ball placements, 
+        and the advanced “Mode 4” if you like a more realistic snooker scoring approach.
       </p>
       <button id="closeRulesBtn">Close</button>
     </div>
