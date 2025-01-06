@@ -1,6 +1,5 @@
-/** 
+/*
  * AIDebugger.js
- * 
  * Enhanced Debugger to assist in “Mode 4” advanced AI logging.
  */
 class AIDebugger {
@@ -19,11 +18,8 @@ class AIDebugger {
     }
   }
 
-  /* 
-   * Logs a complex shot object for advanced debugging.
-   * Example usage:
-   *   this.logShot({ targetBallLabel, angle, power, expectedScore, shotType });
-   */
+  //Logs a complex shot object for advanced debugging.
+
   logShot(shotInfo) {
     if (!this.debugEnabled) return;
     let details = JSON.stringify(shotInfo);
@@ -34,9 +30,7 @@ class AIDebugger {
     }
   }
 
-  /*
-   * Optionally, you can add methods to toggle debugging on/off:
-   */
+  //Optionally, you can add methods to toggle debugging on/off:
   setDebug(enabled) {
     this.debugEnabled = enabled;
   }

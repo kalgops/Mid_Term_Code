@@ -1,18 +1,7 @@
-/** 
- * AIEngine.js
- *
- * Enhanced AI engine for Mode 4 that takes into account SnookerRulesAdvanced,
- * “ballOn,” and possible safety shots. Simplistic heuristics are shown here
- * for demonstration.
+/** AIEngine.js
+ * Enhanced AI engine for Mode 4 that takes into account SnookerRulesAdvanced
  */
 class AIEngine {
-  /**
-   * @param {AIDebugger} debuggerRef
-   * @param {Cue} cue
-   * @param {Array<Ball>} balls
-   * @param {Table} table
-   * @param {SnookerRulesAdvanced} snookerRules  (Required for advanced decisions)
-   */
   constructor(debuggerRef, cue, balls, table, snookerRules) {
     this.debugger = debuggerRef;
     this.cue = cue;
@@ -21,11 +10,7 @@ class AIEngine {
     this.snookerRules = snookerRules;
   }
 
-  /**
-   * Main entry point for AI to determine its shot.
-   * If advanced rules are active, we consider the "ballOn" 
-   * and whether a safety is beneficial.
-   */
+  // Main entry point for AI to determine its shot
   getBestShot() {
     this.debugger.log("AIEngine: searching for best shot (ADVANCED)...");
 
@@ -105,7 +90,6 @@ class AIEngine {
         b => b.label === currentBallOn && !b.isPotted
       );
     }
-    // (Optionally handle 'FreeBall' scenarios or other states.)
 
     return targets;
   }
@@ -113,7 +97,6 @@ class AIEngine {
   /**
    * For demonstration, we estimate pot chance by distance to pocket
    * or purely by distance to the ball. The real approach would be more sophisticated.
-   * 
    * For now, let's just do an inverse distance to cue ball.
    */
   estimatePotChance(targetBall) {

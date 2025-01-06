@@ -1,3 +1,25 @@
+/*
+App Design Commentary
+
+* The Snooker game application is crafted to deliver an immersive and intuitive user experience by employing a mouse-based cue control system.
+* This design choice facilitates seamless interaction, allowing players to aim and execute shots with precision akin to real-life snooker gameplay.
+* By utilizing the mouse exclusively for controlling the cue stick's angle and shot power, the application simplifies user input, making it accessible to players of varying skill levels without the need for complex keyboard or controller configurations.
+* The mouse-based cue function operates by dynamically tracking the cursor's position relative to the cue ball.
+* As the player moves the mouse across the canvas, the cue stick visually aligns with the cursor, providing immediate feedback on the intended direction of the shot.
+* The vertical movement of the mouse within a designated power bar region intuitively maps to shot strength, enabling players to modulate their shot power effortlessly.
+* Clicking or dragging within this power bar translates directly to the cue ball's velocity, allowing for controlled and strategic gameplay.
+* A standout feature of the application is the integration of Mode 4, an advanced single-player mode powered by an AI opponent.
+* This extension leverages the `AIEngine` and `AIDebugger` classes to simulate intelligent and responsive gameplay.
+* The AI meticulously analyzes the table's state, calculates optimal shot angles, and determines appropriate power levels to challenge the player effectively.
+* By logging detailed decision-making processes to the console, the `AIDebugger` provides transparency into the AI's strategic considerations, facilitating debugging and enhancing the development process.
+* This AI-driven Mode 4 distinguishes the application by introducing a dynamic and adaptive opponent that elevates the game's complexity and replayability.
+* Unlike static or random opponents, the AI adapts to the player's strategies, offering a progressively challenging experience that encourages skill development and sustained engagement.
+* The unique combination of realistic physics simulation, intuitive mouse controls, and intelligent AI creates a compelling snooker simulation that appeals to both casual players and enthusiasts seeking a more sophisticated gaming experience.
+* In summary, the application's design emphasizes user-friendly controls, realistic ball dynamics, and intelligent opponent behavior to deliver a rich and engaging snooker experience.
+* The thoughtful integration of a mouse-based cue system simplifies gameplay mechanics, while the advanced AI mode provides depth and challenge, setting this application apart in the realm of interactive sports simulations.
+
+*/
+
 // ----------------------------------------------------------------------
 //  Main p5/Matter.js code: sets up the table, the modes, the collisions,
 //  the scoreboard, the rules overlay, plus user interactions for placing
@@ -17,9 +39,9 @@ let balls = [];
 let cue;
 let shotPredictor;
 
-// Score tracking (simple approach)
-let playerScores = { 'Player 1': 0, 'Player 2': 0 };
-let currentTurn = 'Player 1';
+// Score tracking
+let playerScores = { 'Player': 0, 'AI': 0 }; // Updated for consistency
+let currentTurn = 'Player';
 
 // Sound
 let audioCollision = [];
@@ -49,6 +71,12 @@ let noRedPottedYet = true;   // track if a red ball has ever been potted
 // AI objects (optional)
 let aiDebugger;
 let aiEngine;
+
+// To prevent AI Processing
+let aiProcessing = false;
+
+// AI Selected Ball Highlight
+let aiSelectedBall = null;
 
 function preload() {
   // Attempt to load collision + pocket sound
@@ -86,8 +114,7 @@ function setup() {
   table = new Table(tableX, tableY, tableW, tableH, pocketSize, engine);
 
   // Initialize in gameMode=1 by default
-  initializeBalls();
-  
+  initializeBalls(gameMode, ballDiameter);
 
   // Create the Cue (we'll attach the actual "cue ball" body once placed)
   cue = new Cue(null, engine, table); // ball = null until placed
@@ -98,7 +125,7 @@ function setup() {
 
   // AI Debugger/Engine (optional)
   aiDebugger = new AIDebugger();
-  aiEngine = new AIEngine(aiDebugger, cue, balls, table);
+  aiEngine = new AIEngine(aiDebugger, cue, balls, table, snookerRules);
 
   // If user closes the rules overlay
   const closeBtn = document.getElementById('closeRulesBtn');
@@ -115,8 +142,6 @@ function draw() {
   // Canvas background different from cloth color:
   background(30, 75, 30);
 
-  // If advanced rules are used, they'd be tracked in snookerRules, etc.
-
   // If balls are moving => hide the cue
   let moving = areBallsMoving();
   if (moving && !shotInProgress) {
@@ -125,6 +150,15 @@ function draw() {
   } else if (!moving && shotInProgress) {
     shotInProgress = false;
     if (cue) cue.isVisible = true;
+
+    // After player's shot, if it's AI's turn, trigger AI to take its shot
+    if (useAdvancedRules && currentTurn === 'AI' && !aiProcessing) {
+      aiProcessing = true;
+      setTimeout(() => { // Delay to simulate thinking
+        takeAIShot();
+        aiProcessing = false;
+      }, 1000); // 1-second delay
+    }
   }
 
   Engine.update(engine);
@@ -146,11 +180,33 @@ function draw() {
   }
 
   // Draw predicted line
-  if (shotPredictor) shotPredictor.drawPrediction();
+  if (shotPredictor) {
+    if (useAdvancedRules && currentTurn === 'AI' && aiEngine && aiSelectedBall) {
+      let shot = aiEngine.getBestShot();
+      shotPredictor.drawPrediction(shot);
+    } else {
+      // Draw player's predicted shot
+      let playerShot = {
+        angle: cue.angle,
+        power: cue.power
+      };
+      shotPredictor.drawPrediction(playerShot);
+    }
+  }
 
   // Draw the cue
   if (cue && cue.isVisible) {
     cue.draw();
+  }
+
+  // Highlight AI's target ball (optional)
+  if (aiSelectedBall && !aiSelectedBall.isPotted) {
+    push();
+    stroke(255, 0, 0);
+    strokeWeight(4);
+    noFill();
+    ellipse(aiSelectedBall.body.position.x, aiSelectedBall.body.position.y, aiSelectedBall.diameter + 10);
+    pop();
   }
 
   // If the user hasn’t placed the cue ball in the D, show text
@@ -166,11 +222,46 @@ function draw() {
   updateScoreboard();
 }
 
-// Called by the engine's event 'collisionStart'
+/**
+ * Handles collision events between balls and cushions.
+ * It now supports multiple potted balls and differentiates collision types.
+ * @param {Object} event - Collision event from Matter.js
+ */
 function handleCollision(event) {
   let pairs = event.pairs;
+  let shotOutcome = {
+    pottedBalls: [],
+    fouled: false,
+    freeBall: false
+  };
+
+  let touchedBalls = new Set();
+
+  // Array to store potted balls to process after iterating through all pairs
+  let pottedBalls = [];
+
   for (let pair of pairs) {
     let labels = [pair.bodyA.label, pair.bodyB.label];
+
+    // Log collision types for debugging
+    if (labels.includes('Cue')) {
+      if (labels.includes('Red')) {
+        console.log("Collision detected: Cue ball with Red ball.");
+      } else if (labels.some(label => ['Yellow', 'Green', 'Brown', 'Blue', 'Pink', 'Black'].includes(label))) {
+        console.log("Collision detected: Cue ball with Colored ball.");
+      } else {
+        console.log("Collision detected: Cue ball with Cushion.");
+      }
+    } else {
+      // Collision between non-cue balls
+      console.log(`Collision detected: ${labels[0]} with ${labels[1]}.`);
+    }
+
+    // Track which balls were touched first (assuming depth === 0 is first collision)
+    if (pair.collision.depth === 0) {
+      let firstTouch = pair.bodyA.label === 'Cue' ? pair.bodyA.label : pair.bodyB.label;
+      touchedBalls.add(firstTouch);
+    }
 
     // Play collision sound if cue ball involved
     if (labels.includes('Cue') && audioCollision.length > 0) {
@@ -183,64 +274,108 @@ function handleCollision(event) {
 
     // Check if any ball is potted
     for (let body of [pair.bodyA, pair.bodyB]) {
-      if (body.label && (body.label.startsWith('Red') ||
-        ['Yellow', 'Green', 'Brown', 'Blue', 'Pink', 'Black', 'Cue'].includes(body.label))) {
-        
-        let ballObj = balls.find(b => b.body === body);
+      if (
+        body.label &&
+        (body.label.startsWith('Red') ||
+          ['Yellow', 'Green', 'Brown', 'Blue', 'Pink', 'Black', 'Cue'].includes(body.label))
+      ) {
+        let ballObj = balls.find((b) => b.body === body);
         if (ballObj && !ballObj.isPotted) {
           ballObj.checkPotted(table.pockets);
           if (ballObj.isPotted) {
-            // We potted this ball
-            if (audioPocket && audioPocket.isLoaded()) {
-              audioPocket.setVolume(0.5);
-              audioPocket.play();
-            }
-
-            // Logic for red balls
-            if (ballObj.label.startsWith('Red')) {
-              noRedPottedYet = false; // first red potted => noRedPottedYet = false
-              if (gameMode === 1) {
-                // physically remove from 'balls' array
-                let idx = balls.indexOf(ballObj);
-                if (idx >= 0) {
-                  balls.splice(idx, 1);
-                }
-              }
-              playerScores[currentTurn] += 1;
-            } 
-            // Logic for colored balls
-            else if (['Yellow', 'Green', 'Brown', 'Blue', 'Pink', 'Black'].includes(ballObj.label)) {
-              if (gameMode === 1) {
-                // Respot the ball to its original position
-                if (ballObj.originalPos) {
-                  ballObj.respot(ballObj.originalPos.x, ballObj.originalPos.y);
-                  ballObj.isPotted = false; // mark as not potted after respot
-                }
-              } else {
-                let val = getBallValue(ballObj.label);
-                playerScores[currentTurn] += val;
-              }
-            } 
-            // Cue ball logic
-            else if (ballObj.label === 'Cue') {
-              if (noRedPottedYet) {
-                switchPlayer();
-                cueBallPlaced = false;
-              } else {
-                respotCueBall();
-              }
-            }
-
-            updateScoreboard();
+            pottedBalls.push(ballObj); // Collect potted ball for later processing
           }
         }
       }
     }
   }
+
+  // Process all potted balls
+  for (let ballObj of pottedBalls) {
+    // Ball is potted
+    if (audioPocket && audioPocket.isLoaded()) {
+      audioPocket.setVolume(0.5);
+      audioPocket.play();
+    }
+
+    // Add to pottedBalls
+    shotOutcome.pottedBalls.push(ballObj.label);
+
+    // Handle logic based on game mode
+    if (ballObj.label.startsWith('Red')) {
+      noRedPottedYet = false; // first red potted => noRedPottedYet = false
+      if (gameMode === 1) {
+        // Remove from 'balls' array and log removal
+        let idx = balls.indexOf(ballObj);
+        if (idx >= 0) {
+          balls.splice(idx, 1);
+          console.log(`Red ball ${ballObj.label} has been removed from the array.`);
+        }
+      }
+      if (gameMode === 4) {
+        playerScores['Player'] += 1;
+      } else {
+        // For multiplayer modes
+        playerScores[currentTurn] += 1;
+      }
+    }
+    // Logic for colored balls
+    else if (
+      ['Yellow', 'Green', 'Brown', 'Blue', 'Pink', 'Black'].includes(ballObj.label)
+    ) {
+      if (gameMode === 1 || gameMode === 2) { 
+        // Respot the colored ball to its original position
+        if (ballObj.originalPos) {
+          ballObj.respot(ballObj.originalPos.x, ballObj.originalPos.y);
+          ballObj.isPotted = false; // Mark as not potted after respot
+          console.log(
+            `Colored ball ${ballObj.label} has been respotted to (${ballObj.originalPos.x}, ${ballObj.originalPos.y}).`
+          );
+        }
+      } else if (gameMode === 4) {
+        // In Mode 4, add points based on color value
+        let val = getBallValue(ballObj.label);
+        playerScores['Player'] += val;
+      } else {
+        // Existing Behavior for Other Modes (e.g., Mode 3)
+        let val = getBallValue(ballObj.label);
+        playerScores[currentTurn] += val;
+      }
+    }
+    // Cue ball logic
+    else if (ballObj.label === 'Cue') {
+      if (noRedPottedYet) {
+        switchPlayer();
+        cueBallPlaced = false;
+      } else {
+        respotCueBall();
+      }
+    }
+  }
+
+  // Detect foul based on first ball touched
+  if (gameMode === 4 && snookerRules) {
+    if (touchedBalls.size > 0) {
+      let firstTouched = Array.from(touchedBalls)[0];
+      if (snookerRules.ballOn && firstTouched !== snookerRules.ballOn) {
+        // Foul: wrong ball touched first
+        shotOutcome.fouled = true;
+      }
+    }
+
+    // Handle the shot outcome based on advanced rules
+    snookerRules.handleShotOutcome(shotOutcome);
+
+    if (shotOutcome.fouled) {
+      // Assign foul points to AI (simplified)
+      playerScores['AI'] += 4; // Minimum foul points
+      updateScoreboard();
+      switchPlayer();
+    }
+  }
 }
 
-
-// For short demonstration
+// Helper function to get the value of a colored ball
 function getBallValue(label) {
   // standard snooker color values
   let map = {
@@ -254,16 +389,21 @@ function getBallValue(label) {
   return map[label] || 0;
 }
 
+// Respots the cue ball in the D zone after it is potted
 function respotCueBall() {
-  // Place cue ball again in the D
+  // Reset cue ball placement flag
   cueBallPlaced = false;
-  // Next shot => user must click in the D
+  // Cue ball will be placed by the user in the D zone
 }
 
-// Switch player
+// Switches the current player
 function switchPlayer() {
-  if (currentTurn === 'Player 1') currentTurn = 'Player 2';
-  else currentTurn = 'Player 1';
+  if (gameMode === 4) {
+    currentTurn = (currentTurn === 'Player') ? 'AI' : 'Player';
+  } else {
+    if (currentTurn === 'Player 1') currentTurn = 'Player 2';
+    else currentTurn = 'Player 1';
+  }
 }
 
 // Called every frame to see if balls are still moving
@@ -281,46 +421,71 @@ function areBallsMoving() {
 
 // Re-draw scoreboard
 function updateScoreboard() {
-  let p1El = document.getElementById('player1Score');
-  let p2El = document.getElementById('player2Score');
-  let turnEl = document.getElementById('currentTurn');
-  if (p1El) p1El.innerText = playerScores['Player 1'];
-  if (p2El) p2El.innerText = playerScores['Player 2'];
-  if (turnEl) turnEl.innerText = currentTurn;
+  const singleScoreboard = document.getElementById('singlePlayerScoreboard');
+  const multiScoreboard = document.getElementById('multiplayerScoreboard');
+
+  if (gameMode === 4) {
+    let pEl = document.getElementById('playerScore');
+    let aiEl = document.getElementById('aiScore');
+    let turnEl = document.getElementById('currentTurn');
+    if (pEl) pEl.innerText = playerScores['Player'];
+    if (aiEl) aiEl.innerText = playerScores['AI'];
+    if (turnEl) turnEl.innerText = currentTurn;
+  } else {
+    let p1El = document.getElementById('player1Score');
+    let p2El = document.getElementById('player2Score');
+    let turnEl = document.getElementById('currentTurn');
+    if (p1El) p1El.innerText = playerScores['Player 1'];
+    if (p2El) p2El.innerText = playerScores['Player 2'];
+    if (turnEl) turnEl.innerText = currentTurn;
+  }
 }
 
-// The main initialization for balls in each mode
+/**
+ * Initializes balls based on the selected game mode.
+ * @param {Number} mode - Game mode (1,2,3,4)
+ * @param {Number} ballDiameter - Diameter of the balls
+ */
 function initializeBalls(mode, ballDiameter) {
-  // Clear out old
+  // Clear out old balls
   for (let b of balls) {
     World.remove(world, b.body);
   }
   balls = [];
 
   // Reset scores, turn, flags
+  playerScores['Player'] = 0;
+  playerScores['AI'] = 0;
   playerScores['Player 1'] = 0;
   playerScores['Player 2'] = 0;
-  currentTurn = 'Player 1';
+  currentTurn = (mode === 4) ? 'Player' : 'Player 1';
   noRedPottedYet = true;
   cueBallPlaced = false;
   useAdvancedRules = false;
 
-  // If mode=4 => use advanced rules
+  // Show/Hide appropriate scoreboard
+  const singleScoreboard = document.getElementById('singlePlayerScoreboard');
+  const multiScoreboard = document.getElementById('multiplayerScoreboard');
+
   if (mode === 4) {
     useAdvancedRules = true;
     snookerRules = new SnookerRulesAdvanced(
-      ['Player 1', 'Player 2'],
-      (player, pts)=>{ /* onScoreUpdate callback */},
-      ()=>{ /* onFrameEnd callback */},
-      (state, ballOn)=>{ /* onStateChange callback */} 
+      ['Player', 'AI'],
+      (player, pts) => { /* onScoreUpdate callback */ },
+      () => { /* onFrameEnd callback */ },
+      (state, ballOn) => { /* onStateChange callback */ }
     );
+    // Display single player scoreboard
+    singleScoreboard.style.display = 'inline-block';
+    multiScoreboard.style.display = 'none';
   } else {
     snookerRules = null;
+    // Display multiplayer scoreboard
+    singleScoreboard.style.display = 'none';
+    multiScoreboard.style.display = 'inline-block';
   }
 
-  // We do *not* place the cue ball body yet. We let the user click to place it in the D.
-
-  // For each mode, place the red + color balls
+  // Place balls based on mode
   if (mode === 1 || mode === 4) {
     setupStandardPositions(ballDiameter);
   } 
@@ -378,22 +543,22 @@ function setupStandardPositions(d) {
   // Now place 15 reds in a tight triangle near the pink
   // Approx. apex ~ 10-15px from pink
   // Corrected apex position for a right-facing triangle
-let apexX = pinkX + 10; // Start to the left of the pink ball
-let apexY = pinkY;           // Align vertically with the pink ball
+  let apexX = pinkX + 10; // Start to the left of the pink ball
+  let apexY = pinkY;           // Align vertically with the pink ball
 
-let rows = 5; // Standard snooker setup
-let index = 0;
+  let rows = 5; // Standard snooker setup
+  let index = 0;
 
-// Adjust offsets to form a right-facing triangle
-for (let row = 0; row < rows; row++) {
-  for (let col = 0; col <= row; col++) {
-    let xOff = row * (d + 0.9);             // Horizontal offset moves rightward
-    let yOff = (col - row / 2) * (d + 1); // Vertical offset for symmetry
-    let rx = apexX + xOff;
-    let ry = apexY + yOff;
-    createRedBall(rx, ry, d, `Red_${index++}`);
+  // Adjust offsets to form a right-facing triangle
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col <= row; col++) {
+      let xOff = row * (d + 0.9);             // Horizontal offset moves rightward
+      let yOff = (col - row / 2) * (d + 1); // Vertical offset for symmetry
+      let rx = apexX + xOff;
+      let ry = apexY + yOff;
+      createRedBall(rx, ry, d, `Red_${index++}`);
+    }
   }
-}
 
 }
 
@@ -407,24 +572,7 @@ function setupRandomReds_KeepColors(d) {
   }
 
   // Then place “standard” colors at normal spots
-  // This can be simpler or the same arrangement from Mode 1
-  // For demonstration, let's place them like we do in standard positions, but no reds in triangle
   setupStandardColorSpots(d);
-}
-
-// Helper to place the standard 6 colors, same as above
-function setupStandardColorSpots(d) {
-  let centerY = table.y + table.height / 2;
-  let centerX = table.x + table.width / 2;
-
-  createColoredBall(centerX, centerY, d, '#0000FF', 'Blue');      // center
-  createColoredBall(centerX + 200, centerY, d, '#FFC0CB', 'Pink');
-  createColoredBall(centerX + 350, centerY, d, '#000000', 'Black');
-
-  let baulkX = table.x + table.width * 0.25;
-  createColoredBall(baulkX, centerY, d, '#8B4513', 'Brown');
-  createColoredBall(baulkX, centerY - 50, d, '#008000', 'Green');
-  createColoredBall(baulkX, centerY + 50, d, '#FFFF00', 'Yellow');
 }
 
 // Mode 3: random reds & random colored
@@ -548,7 +696,7 @@ function keyPressed() {
     initializeBalls(gameMode, d);
   }
   else if (key === '4') {
-    console.log("Mode 4 => Advanced Snooker Rules + Standard Layout");
+    console.log("Mode 4 => Advanced Snooker Rules + Single-Player AI");
     gameMode = 4;
     let d = table.height / 36;
     initializeBalls(gameMode, d);
@@ -653,4 +801,79 @@ function toggleRulesOverlay(forceShow) {
 
 function windowResized() {
   // do nothing or you can handle resizing
+}
+
+/**
+ * Triggers the AI to take its shot.
+ */
+function takeAIShot() {
+  // Ensure cue ball is placed and not moving
+  if (cue && cue.ball && cueBallPlaced && !areBallsMoving()) {
+    let shot = aiEngine.getBestShot();
+    applyShot(shot);
+    // Highlight the target ball (optional)
+    aiSelectedBall = balls.find(b => b.label === shot.targetBallLabel);
+  }
+}
+
+/**
+ * Applies the AI's shot by setting the cue ball's velocity based on angle and power.
+ * @param {Object} shot - Contains angle and power for the shot
+ */
+function applyShot(shot) {
+  let power = shot.power;
+  let angle = shot.angle;
+
+  // Calculate velocity components
+  let velocity = {
+    x: power * cos(angle),
+    y: power * sin(angle)
+  };
+
+  // Apply the calculated velocity to the cue ball
+  Matter.Body.setVelocity(cue.ball.body, velocity);
+
+  // Log the AI's shot details
+  console.log(`AI Shot: Angle=${angle.toFixed(2)}, Power=${power.toFixed(2)}`);
+}
+
+/**
+ * NEW FUNCTION: Sets up the standard color spots for Mode 2.
+ * This function places the colored balls in their default positions while keeping the reds randomized.
+ * @param {Number} d - Diameter of the balls
+ */
+function setupStandardColorSpots(d) {
+  // Reference Y center:
+  let centerY = table.y + table.height / 2;
+  let centerX = table.x + table.width / 2;
+
+  // Place the Blue in the center
+  let blueX = centerX;
+  let blueY = centerY;
+  createColoredBall(blueX, blueY, d, '#0000FF', 'Blue');
+
+  // Pink ~ halfway between Blue and top cushion
+  let pinkX = 900;
+  let pinkY = centerY;
+  createColoredBall(pinkX, pinkY, d, '#FFC0CB', 'Pink');
+
+  // Black ~ behind pink
+  let blackX = pinkX + 150;
+  let blackY = centerY;
+  createColoredBall(blackX, blackY, d, '#000000', 'Black');
+
+  // Baulk line at x=table.x + table.width*0.25
+  let baulkX = table.x + table.width * 0.25;
+  
+  // Brown in center of baulk
+  let brownY = centerY;
+  createColoredBall(baulkX, brownY, d, '#8B4513', 'Brown');
+
+  // Green on left of baulk
+  let greenY = centerY - 50;
+  createColoredBall(baulkX, greenY, d, '#008000', 'Green');
+
+  // Yellow on right of baulk
+  let yellowY = centerY + 50;
+  createColoredBall(baulkX, yellowY, d, '#FFFF00', 'Yellow');
 }

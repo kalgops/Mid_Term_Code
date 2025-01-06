@@ -74,24 +74,37 @@ class Cue {
 
   applyStrikeForce() {
     if (!this.ball || this.ball.isPotted) return;
-    let forceMag = (this.power / 100) * 0.02; 
-    let force = {
-      x: forceMag * Math.cos(this.angle),
-      y: forceMag * Math.sin(this.angle)
-    };
-    Matter.Body.applyForce(this.ball.body, this.ball.body.position, force);
 
-    // optional small random spin
-    let torque = random(-0.00005, 0.00005);
+    // Adjusted force scaling to reduce power
+    let forceScale = 0.0130; // Smaller value reduces the power
+    let forceMag = (this.power / 100) * forceScale;
+
+    // Calculate initial velocity components
+    let initialVelocity = {
+        x: forceMag * Math.cos(this.angle),
+        y: forceMag * Math.sin(this.angle)
+    };
+
+    // Apply the reduced force to the cue ball
+    Matter.Body.applyForce(
+        this.ball.body,
+        this.ball.body.position,
+        initialVelocity
+    );
+
+    // Optional small random spin
+    let torque = random(-0.00002, 0.00002); // Reduced torque for realism
     Matter.Body.setAngularVelocity(this.ball.body, torque);
 
-    // Sound effect
+    // Play the sound effect with adjusted volume
     if (this.audioCueHit && this.audioCueHit.isLoaded()) {
-      let vol = map(forceMag, 0, 0.02, 0.2, 1);
-      this.audioCueHit.setVolume(vol);
-      this.audioCueHit.play();
+        let vol = map(forceMag, 0, 0.01, 0.1, 0.5); // Adjust volume for reduced power
+        this.audioCueHit.setVolume(vol);
+        this.audioCueHit.play();
     }
-  }
+}
+
+
 
   triggerStrike() {
     if (!this.ball || this.ball.isPotted) return;

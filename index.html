@@ -96,14 +96,21 @@
   <div id="sketch-container">
     <!-- The p5.js canvas is created here by createCanvas(...) -->
     <!-- Scoreboard and guide below the table -->
+
+    <!-- Single Player Scoreboard for Mode 4 -->
     <div id="singlePlayerScoreboard">
-      <h3>Score: <span id="singlePlayerScore">0</span></h3>
+      <h3>Scoreboard</h3>
+      <p><strong>Player:</strong> <span id="playerScore">0</span></p>
+      <p><strong>AI:</strong> <span id="aiScore">0</span></p>
+      <p><strong>Current Turn:</strong> <span id="currentTurn">Player</span></p>
     </div>
     
+    <!-- Multiplayer Scoreboard for Modes 1-3 -->
     <div id="multiplayerScoreboard">
-      <h3>Player 1 Score: <span id="player1Score">0</span></h3>
-      <h3>Player 2 Score: <span id="player2Score">0</span></h3>
-      <h4>Current Turn: <span id="currentTurn">Player 1</span></h4>
+      <h3>Scoreboard</h3>
+      <p><strong>Player 1:</strong> <span id="player1Score">0</span></p>
+      <p><strong>Player 2:</strong> <span id="player2Score">0</span></p>
+      <p><strong>Current Turn:</strong> <span id="currentTurn">Player 1</span></p>
     </div>
   </div>
   <div id="guide">
@@ -112,17 +119,17 @@
       <li>Press '1' for <strong>Mode 1</strong> (standard triangle layout).</li>
       <li>Press '2' for <strong>Mode 2</strong> (random reds, colored in standard spots).</li>
       <li>Press '3' for <strong>Mode 3</strong> (random reds & random colored).</li>
-      <li>Press '4' for <strong>Mode 4</strong> (advanced rules demo + standard layout).</li>
+      <li>Press '4' for <strong>Mode 4</strong> (advanced rules demo + single-player AI).</li>
       <li>
         To place the <strong>cue ball</strong> in the D zone:
         <ul>
           <li>If you see “Click Inside the 'D' Zone to Place Cue Ball”, click inside the D zone to place it.</li>
-          <li>Similarly, if the cue ball is potted without a red being potted, the next player re-places it in the D.</li>
+          <li>Similarly, if the cue ball is potted without a red being potted, the next player (AI) re-places it in the D.</li>
         </ul>
       </li>
       <li>Use the <strong>power bar</strong> (left side) to set shot strength (0–100%).</li>
       <li>Press <strong>SPACE</strong> to strike the cue ball (only when balls are stopped).</li>
-      <li>Press <strong>R</strong> to show/hide the Rules & Tips at any time.</li>
+      <li>Press <strong>'R'</strong> to show/hide the Rules & Tips at any time.</li>
     </ul>
   </div>
 
@@ -133,7 +140,7 @@
       <p>
         - Pot reds for 1 point each, then a color (2–7 pts) until no reds remain.<br/>
         - After all reds are gone, pot the colors in ascending order (Yellow→Green→Brown→Blue→Pink→Black).<br/>
-        - If you pot the cue ball before potting any red, your opponent gets to replace the cue ball in the D.<br/>
+        - If you pot the cue ball before potting any red, the opponent (AI) gets to replace the cue ball in the D.<br/>
         - Colored balls get re-spotted until the final phase (or if advanced logic is active).
       </p>
       <p>
